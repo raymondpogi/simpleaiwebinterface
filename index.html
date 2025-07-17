@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ollama Chat Interface</title>
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.20.4/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mammoth@1.4.2/mammoth.browser.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/5.1.2/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/crypto-js@4.1.1/crypto-js.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {}
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-left-color: #14b8a6;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
+    <div id="root"></div>
+    <script type="text/babel">
+        console.log('Starting Ollama Chat Interface...');
+
+        function Auth({ onLogin }) {
+            const [isLogin, setIsLogin] = React.useState(true);
+            const [username, setUsername] = React.useState('');
+            const [password, setPassword] = React.useState('');
+            const [error, setError] = React.useState('');
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                setError('');
+                const users = JSON.parse(localStorage.getItem('users') || '[]');
+                const passwordHash = CryptoJS.SHA256(password).toString();
+
+                if (isLogin) {
+                    const user = users.find(u => u.username === username && u.passwordHash === passwordHash);
+                    if (user) {
+                        localStorage.setItem('currentUser', username);
+                        onLogin(username);
+                    } else {
+                        setError('Invalid username or password');
+                    }
+                } else {
+                    if (users.find(u => u.username === username)) {
+                        setError('Username already exists');
+                        return;
+                    }
+                    users.push({ username, passwordHash });
+                    localStorage.setItem('users', JSON.stringify(users));
+                    localStorage.setItem('currentUser', username);
+                    onLogin(username);
+                }
+            };
+
+            return (
+                <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+                    <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-lg w-full max-w-md">
+                        <h2 className="text-2xl font-semibold text-gray-800 dark:text-gray-100 mb-6 text-center">
+                            {isLogin ? 'Login' : 'Create Account'}
+                        </h2>
+                        <form onSubmit={handleSubmit}>
+                            <div className="mb-4">
+                                <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Username</label>
+                                <input
+                                    id="username"
+                                    type="text"
+                                    value={username}
+                                    onChange={(e) => setUsername(e.target.value)}
+                                    className="mt-1 block w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                                    placeholder="Enter username"
+                                    required
+                                />
+                            </div>
+                            <div className="mb-4">
+                                <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
+                                <input
+                                    id="password"
+                                    type="password"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    className="mt-1 block w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                                    placeholder="Enter password"
+                                    required
+                                />
+                            </div>
+                            {error && (
+                                <div className="mb-4 text-sm text-red-500 dark:text-red-400 text-center">{error}</div>
+                            )}
+                            <button
+                                type="submit"
+                                className="w-full p-3 bg-gradient-to-r from-teal-500 to-teal-600 text-white rounded-lg hover:from-teal-600 hover:to-teal-700 transition-transform duration-200 hover:scale-105"
+                            >
+                                {isLogin ? 'Login' : 'Create Account'}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setIsLogin(!isLogin);
+                                    setError('');
+                                    setUsername('');
+                                    setPassword('');
+                                }}
+                                className="mt-4 w-full p-3 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors duration-200"
+                            >
+                                {isLogin ? 'Need an account? Create one' : 'Have an account? Login'}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            );
+        }
+
+        function App() {
+            const [isLoggedIn, setIsLoggedIn] = React.useState(!!localStorage.getItem('currentUser'));
+            const [currentUser, setCurrentUser] = React.useState(localStorage.getItem('currentUser') || '');
+            const [messages, setMessages] = React.useState([]);
+            const [input, setInput] = React.useState('');
+            const [status, setStatus] = React.useState('Connecting to Ollama...');
+            const [isLoading, setIsLoading] = React.useState(false);
+            const [isRetrying, setIsRetrying] = React.useState(false);
+            const [isInputDisabled, setIsInputDisabled] = React.useState(false);
+            const [savedConversations, setSavedConversations] = React.useState([]);
+            const [currentConversationId, setCurrentConversationId] = React.useState(null);
+            const [model, setModel] = React.useState('');
+            const [models, setModels] = React.useState([]);
+            const [documents, setDocuments] = React.useState([]);
+            const [isDocumentsCollapsed, setIsDocumentsCollapsed] = React.useState(false);
+            const [systemPrompt, setSystemPrompt] = React.useState('');
+            const [systemPromptTitle, setSystemPromptTitle] = React.useState('');
+            const [savedSystemPrompts, setSavedSystemPrompts] = React.useState([]);
+            const [isConversationSidebarOpen, setIsConversationSidebarOpen] = React.useState(false);
+            const [isPromptSidebarOpen, setIsPromptSidebarOpen] = React.useState(false);
+            const [lastFailedMessage, setLastFailedMessage] = React.useState(null);
+            const [isDarkMode, setIsDarkMode] = React.useState(localStorage.getItem('theme') === 'dark');
+            const abortControllerRef = React.useRef(null);
+            const messagesEndRef = React.useRef(null);
+            const fileInputRef = React.useRef(null);
+            const importInputRef = React.useRef(null);
+
+            React.useEffect(() => {
+                console.log('Initializing useEffect...');
+                // Initialize theme
+                const savedTheme = localStorage.getItem('theme') || 'light';
+                setIsDarkMode(savedTheme === 'dark');
+                document.documentElement.classList.toggle('dark', savedTheme === 'dark');
+                if (!isLoggedIn) return;
+                try {
+                    const savedConvs = localStorage.getItem(`savedConversations_${currentUser}`);
+                    if (savedConvs) {
+                        try {
+                            const decompressed = LZString.decompressFromUTF16(savedConvs);
+                            setSavedConversations(JSON.parse(decompressed || '[]'));
+                        } catch (e) {
+                            console.error('Corrupted savedConversations:', e);
+                            localStorage.removeItem(`savedConversations_${currentUser}`);
+                        }
+                    }
+                    const savedPrompts = localStorage.getItem(`savedSystemPrompts_${currentUser}`);
+                    if (savedPrompts) {
+                        try {
+                            const decompressed = LZString.decompressFromUTF16(savedPrompts);
+                            setSavedSystemPrompts(JSON.parse(decompressed || '[]'));
+                        } catch (e) {
+                            console.error('Corrupted savedSystemPrompts:', e);
+                            localStorage.removeItem(`savedSystemPrompts_${currentUser}`);
+                        }
+                    }
+                    const lastState = localStorage.getItem(`currentConversation_${currentUser}`);
+                    if (lastState) {
+                        try {
+                            const { messages, documents, systemPrompt, systemPromptTitle, conversationId } = JSON.parse(lastState);
+                            setMessages(messages || []);
+                            setDocuments(documents || []);
+                            setSystemPrompt(systemPrompt || '');
+                            setSystemPromptTitle(systemPromptTitle || '');
+                            setCurrentConversationId(conversationId || null);
+                            if (messages.length > 0 || documents.length > 0 || systemPrompt) {
+                                setMessages([...messages, { role: 'assistant', content: `Loaded last conversation for ${currentUser} from memory.` }]);
+                            }
+                        } catch (e) {
+                            console.error('Corrupted currentConversation:', e);
+                            localStorage.removeItem(`currentConversation_${currentUser}`);
+                        }
+                    }
+                    fetchModels();
+                    setTimeout(() => {
+                        if (typeof window.marked === 'undefined') {
+                            console.error('marked.js failed to load. Using basic formatting.');
+                            setMessages([...messages, { role: 'assistant', content: 'Warning: Failed to load markdown parser. Using basic formatting.' }]);
+                        }
+                    }, 10000);
+                } catch (e) {
+                    console.error('General error in useEffect:', e);
+                    setMessages([...messages, { role: 'assistant', content: 'Error loading saved data. Check console (F12).' }]);
+                }
+            }, [isLoggedIn, currentUser]);
+
+            const saveCurrentState = () => {
+                try {
+                    const state = { messages, documents, systemPrompt, systemPromptTitle, conversationId: currentConversationId };
+                    localStorage.setItem(`currentConversation_${currentUser}`, JSON.stringify(state));
+                } catch (e) {
+                    console.error('Error saving to localStorage:', e);
+                    setMessages([...messages, { role: 'assistant', content: 'Warning: Failed to save conversation. Check browser storage limits.' }]);
+                }
+            };
+
+            const toggleTheme = () => {
+                const newTheme = !isDarkMode ? 'dark' : 'light';
+                setIsDarkMode(!isDarkMode);
+                localStorage.setItem('theme', newTheme);
+                document.documentElement.classList.toggle('dark', !isDarkMode);
+            };
+
+            const handleLogin = (username) => {
+                setCurrentUser(username);
+                setIsLoggedIn(true);
+            };
+
+            const handleLogout = () => {
+                localStorage.removeItem('currentUser');
+                setIsLoggedIn(false);
+                setCurrentUser('');
+                setMessages([]);
+                setDocuments([]);
+                setSystemPrompt('');
+                setSystemPromptTitle('');
+                setCurrentConversationId(null);
+                setModel('');
+            };
+
+            const fetchModels = async (retries = 3, delay = 1000) => {
+                console.log('Fetching models from http://localhost:11434/api/tags...');
+                for (let i = 0; i < retries; i++) {
+                    try {
+                        const response = await fetch(`http://localhost:11434/api/tags`, {
+                            method: 'GET',
+                            headers: { 'Content-Type': 'application/json' }
+                        });
+                        if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+                        const data = await response.json();
+                        if (!data.models || data.models.length === 0) {
+                            setStatus(`No models found at localhost:11434. Please pull models using 'ollama pull <model>'.`);
+                            setMessages([{ role: 'assistant', content: `No models available. Run 'ollama pull <model>' to download a model.` }]);
+                            saveCurrentState();
+                            return;
+                        }
+                        const availableModels = data.models.map(model => model.name);
+                        setModels(availableModels);
+                        setStatus(`Connected to Ollama at localhost:11434`);
+                        console.log('Available models:', availableModels);
+                        return;
+                    } catch (error) {
+                        console.error(`Attempt ${i + 1} failed:`, error);
+                        if (i < retries - 1) {
+                            await new Promise(resolve => setTimeout(resolve, delay));
+                            continue;
+                        }
+                        const errorMessage = `Failed to connect to Ollama at localhost:11434. Ensure it is running.`;
+                        setStatus(errorMessage);
+                        setMessages([{ role: 'assistant', content: errorMessage + ' Check console (F12).' }]);
+                        saveCurrentState();
+                    }
+                }
+            };
+
+            const validateFileType = async (file) => {
+                console.log('Validating file type:', file.name);
+                const arrayBuffer = await file.slice(0, 8).arrayBuffer();
+                const bytes = new Uint8Array(arrayBuffer);
+                if (file.type === 'text/plain' && file.name.endsWith('.txt')) {
+                    return true;
+                } else if (file.type === 'application/pdf' && file.name.endsWith('.pdf')) {
+                    return bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46;
+                } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' && file.name.endsWith('.docx')) {
+                    return bytes[0] === 0x50 && bytes[1] === 0x4B && bytes[2] === 0x03 && bytes[3] === 0x04;
+                } else if (file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' && file.name.endsWith('.xlsx')) {
+                    return bytes[0] === 0x50 && bytes[1] === 0x4B && bytes[2] === 0x03 && bytes[3] === 0x04;
+                }
+                return false;
+            };
+
+            const parsePDF = async (file) => {
+                console.log('Parsing PDF:', file.name);
+                const arrayBuffer = await file.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                let text = '';
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const content = await page.getTextContent();
+                    text += content.items.map(item => item.str).join(' ') + ' ';
+                }
+                return text;
+            };
+
+            const parseDOCX = async (file) => {
+                console.log('Parsing DOCX:', file.name);
+                const arrayBuffer = await file.arrayBuffer();
+                const result = await mammoth.extractRawText({ arrayBuffer });
+                return result.value;
+            };
+
+            const parseXLSX = async (file) => {
+                console.log('Parsing XLSX:', file.name);
+                const arrayBuffer = await file.arrayBuffer();
+                const workbook = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' });
+                let text = '';
+                workbook.SheetNames.forEach(sheetName => {
+                    const sheet = workbook.Sheets[sheetName];
+                    const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+                    text += json.map(row => row.join(' ')).join('\n') + ' ';
+                });
+                return text;
+            };
+
+            const handleFileUpload = async (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                console.log('Handling file upload:', file.name);
+                const maxSize = 10 * 1024 * 1024;
+                if (file.size > maxSize) {
+                    setMessages([...messages, { role: 'assistant', content: `File "${file.name}" exceeds 10MB limit.` }]);
+                    setStatus('File too large');
+                    return;
+                }
+
+                if (!(await validateFileType(file))) {
+                    setMessages([...messages, { role: 'assistant', content: `Invalid file format for "${file.name}". Use .txt, .pdf, .docx, or .xlsx.` }]);
+                    setStatus('Invalid file format');
+                    return;
+                }
+
+                setIsLoading(true);
+                setStatus('Processing document...');
+
+                try {
+                    let text;
+                    if (file.type === 'text/plain') {
+                        text = await file.text();
+                    } else if (file.type === 'application/pdf') {
+                        text = await parsePDF(file);
+                    } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || file.name.endsWith('.docx')) {
+                        text = await parseDOCX(file);
+                    } else if (file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || file.name.endsWith('.xlsx')) {
+                        text = await parseXLSX(file);
+                    } else {
+                        throw new Error('Unsupported file type. Use .txt, .pdf, .docx, or .xlsx.');
+                    }
+
+                    setDocuments([...documents, { name: file.name, content: text }]);
+                    setMessages([...messages, { role: 'assistant', content: `Document "${file.name}" uploaded and added to store.` }]);
+                    setStatus(`Connected to Ollama at localhost:11434`);
+                    saveCurrentState();
+                } catch (error) {
+                    console.error('Upload error:', error);
+                    setMessages([...messages, { role: 'assistant', content: `Error processing document: ${error.message}` }]);
+                    setStatus('Error processing document');
+                    saveCurrentState();
+                }
+                setIsLoading(false);
+                if (fileInputRef.current) fileInputRef.current.value = '';
+            };
+
+            const removeDocument = (index) => {
+                const updatedDocuments = documents.filter((_, i) => i !== index);
+                setDocuments(updatedDocuments);
+                setMessages([...messages, { role: 'assistant', content: `Document "${documents[index].name}" removed from store.` }]);
+                saveCurrentState();
+            };
+
+            const stopRequest = () => {
+                if (abortControllerRef.current) {
+                    abortControllerRef.current.abort();
+                    setIsLoading(false);
+                    setIsRetrying(false);
+                    setIsInputDisabled(true);
+                    setMessages([...messages, { role: 'assistant', content: 'Request stopped by user.' }]);
+                    setStatus(`Connected to Ollama at localhost:11434`);
+                    saveCurrentState();
+                    setTimeout(() => {
+                        setIsInputDisabled(false);
+                    }, 5000);
+                }
+            };
+
+            const sendMessage = async (messageOverride = null) => {
+                const messageToSend = messageOverride || input;
+                if (!messageToSend.trim()) return;
+                if (!model || !models.includes(model)) {
+                    setMessages([...messages, { role: 'assistant', content: `Please select a valid model from the dropdown.` }]);
+                    saveCurrentState();
+                    return;
+                }
+                if (isInputDisabled) {
+                    setMessages([...messages, { role: 'assistant', content: `Please wait a few seconds before sending another message.` }]);
+                    return;
+                }
+                setIsLoading(true);
+                setIsRetrying(!!messageOverride);
+                const userMessage = { role: 'user', content: messageToSend };
+                const currentMessages = [...messages, userMessage];
+                setMessages(currentMessages);
+                if (!messageOverride) setInput('');
+
+                try {
+                    abortControllerRef.current = new AbortController();
+                    const messagesToSend = [];
+                    if (systemPrompt) {
+                        messagesToSend.push({ role: 'system', content: systemPrompt });
+                    }
+                    if (documents.length > 0) {
+                        const context = `Context from documents:\n${documents.map(doc => doc.content.slice(0, 500)).join('\n').slice(0, 1000)}\n\n`;
+                        messagesToSend.push({ role: 'user', content: context + messageToSend });
+                    } else {
+                        messagesToSend.push(...currentMessages);
+                    }
+                    console.log('Sending message to http://localhost:11434/api/chat:', messagesToSend);
+                    const response = await fetch(`http://localhost:11434/api/chat`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            model: model,
+                            messages: messagesToSend,
+                            stream: false
+                        }),
+                        signal: abortControllerRef.current.signal
+                    });
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        throw new Error(`HTTP error! Status: ${response.status}, Details: ${errorText}`);
+                    }
+                    const data = await response.json();
+                    let content = data.message.content.replace(/<\|question\|>/g, '').trim();
+                    try {
+                        content = window.marked ? window.marked.parse(content) : content.replace(/\n/g, '<br>');
+                    } catch (e) {
+                        console.error('Markdown parsing error:', e);
+                        content = content.replace(/\n/g, '<br>');
+                    }
+                    setMessages([...currentMessages, { role: 'assistant', content }]);
+                    setStatus(`Connected to Ollama at localhost:11434`);
+                    setLastFailedMessage(null);
+                    saveCurrentState();
+                } catch (error) {
+                    if (error.name === 'AbortError') {
+                        console.log('Request aborted by user');
+                    } else {
+                        console.error('Chat error:', error);
+                        let errorMessage = `Failed to get response from localhost:11434: ${error.message}`;
+                        if (error.message.includes('500')) {
+                            errorMessage += ' This may be due to insufficient memory, model incompatibility, or a server issue. Try checking system resources or re-pulling the model.';
+                        }
+                        setMessages([...currentMessages, { role: 'assistant', content: errorMessage + ' <button class="retry-btn ml-2 p-1 bg-yellow-500 text-white rounded-full hover:bg-yellow-600 transition-transform duration-200 hover:scale-105" data-message="' + encodeURIComponent(messageToSend) + '">Retry</button>' }]);
+                        setLastFailedMessage(messageToSend);
+                        setStatus('Error during chat request');
+                        saveCurrentState();
+                    }
+                }
+                setIsLoading(false);
+                setIsRetrying(false);
+                abortControllerRef.current = null;
+            };
+
+            const handleRetry = (event) => {
+                const message = decodeURIComponent(event.target.getAttribute('data-message'));
+                sendMessage(message);
+            };
+
+            const handleKeyPress = (e) => {
+                if (e.key === 'Enter' && !e.shiftKey && !isInputDisabled) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            };
+
+            const newChat = () => {
+                if (messages.length > 0 || systemPrompt) {
+                    const firstUserMessage = messages.find(msg => msg.role === 'user')?.content || 'Untitled';
+                    const firstWords = firstUserMessage.trim().split(/\s+/).slice(0, 3).join(' ').slice(0, 20).replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_') || 'Untitled';
+                    const modelName = model ? model.replace(/:/g, '_') : 'NoModel';
+                    const timestamp = new Date().toISOString().replace(/T/, '_').replace(/:/g, '').slice(0, 16);
+                    const conversationName = `${firstWords}_${modelName}_${timestamp}`;
+                    const newConversation = {
+                        name: conversationName,
+                        id: conversationName,
+                        timestamp: new Date().toISOString(),
+                        messages,
+                        systemPrompt,
+                        systemPromptTitle
+                    };
+                    const updatedConversations = [...savedConversations, newConversation];
+                    setSavedConversations(updatedConversations);
+                    try {
+                        localStorage.setItem(`savedConversations_${currentUser}`, LZString.compressToUTF16(JSON.stringify(updatedConversations)));
+                    } catch (e) {
+                        console.error('Error saving conversations:', e);
+                        setMessages([...messages, { role: 'assistant', content: 'Warning: Failed to save conversation. Check browser storage limits.' }]);
+                    }
+                }
+                setMessages([{ role: 'assistant', content: `New chat started for ${currentUser}. Please select a model.` }]);
+                setDocuments([]);
+                setSystemPrompt('');
+                setSystemPromptTitle('');
+                setCurrentConversationId(null);
+                setModel('');
+                setLastFailedMessage(null);
+                localStorage.removeItem(`currentConversation_${currentUser}`);
+            };
+
+            const loadConversation = (index) => {
+                const conversation = savedConversations[index];
+                setMessages(conversation.messages);
+                setDocuments(conversation.documents || []);
+                setSystemPrompt(conversation.systemPrompt || '');
+                setSystemPromptTitle(conversation.systemPromptTitle || '');
+                setCurrentConversationId(conversation.id);
+                setModel(conversation.name.split('_').slice(-3, -2)[0].replace(/_/g, ':'));
+                setMessages([...conversation.messages, { role: 'assistant', content: `Loaded conversation "${conversation.name}" for ${currentUser}.` }]);
+                saveCurrentState();
+            };
+
+            const deleteConversation = (index) => {
+                const conversation = savedConversations[index];
+                const updatedConversations = savedConversations.filter((_, i) => i !== index);
+                setSavedConversations(updatedConversations);
+                try {
+                    localStorage.setItem(`savedConversations_${currentUser}`, LZString.compressToUTF16(JSON.stringify(updatedConversations)));
+                } catch (e) {
+                    console.error('Error saving conversations:', e);
+                    setMessages([...messages, { role: 'assistant', content: 'Warning: Failed to save conversation changes. Check browser storage limits.' }]);
+                }
+                if (currentConversationId === conversation.id) {
+                    setMessages([{ role: 'assistant', content: `Conversation "${conversation.name}" deleted. Starting a new session for ${currentUser}.` }]);
+                    setDocuments([]);
+                    setSystemPrompt('');
+                    setSystemPromptTitle('');
+                    setCurrentConversationId(null);
+                    setModel('');
+                    localStorage.removeItem(`currentConversation_${currentUser}`);
+                } else {
+                    setMessages([...messages, { role: 'assistant', content: `Conversation "${conversation.name}" deleted.` }]);
+                    saveCurrentState();
+                }
+            };
+
+            const saveSystemPrompt = () => {
+                if (!systemPromptTitle.trim()) {
+                    setMessages([...messages, { role: 'assistant', content: 'Please enter a system prompt title.' }]);
+                    return;
+                }
+                const newPrompt = {
+                    title: systemPromptTitle,
+                    id: systemPromptTitle,
+                    content: systemPrompt,
+                    timestamp: new Date().toISOString()
+                };
+                const existingIndex = savedSystemPrompts.findIndex(prompt => prompt.id === systemPromptTitle);
+                let updatedPrompts;
+                if (existingIndex !== -1) {
+                    updatedPrompts = [...savedSystemPrompts];
+                    updatedPrompts[existingIndex] = newPrompt;
+                    setMessages([...messages, { role: 'assistant', content: `System prompt "${systemPromptTitle}" updated for ${currentUser}.` }]);
+                } else {
+                    updatedPrompts = [...savedSystemPrompts, newPrompt];
+                    setMessages([...messages, { role: 'assistant', content: `System prompt "${systemPromptTitle}" saved for ${currentUser}.` }]);
+                }
+                setSavedSystemPrompts(updatedPrompts);
+                try {
+                    localStorage.setItem(`savedSystemPrompts_${currentUser}`, LZString.compressToUTF16(JSON.stringify(updatedPrompts)));
+                } catch (e) {
+                    console.error('Error saving system prompts:', e);
+                    setMessages([...messages, { role: 'assistant', content: 'Warning: Failed to save system prompt. Check browser storage limits.' }]);
+                }
+                setSystemPromptTitle('');
+                saveCurrentState();
+            };
+
+            const loadSystemPrompt = (index) => {
+                const prompt = savedSystemPrompts[index];
+                setSystemPrompt(prompt.content);
+                setSystemPromptTitle(prompt.title);
+                setMessages([...messages, { role: 'assistant', content: `Loaded system prompt "${prompt.title}" for ${currentUser}.` }]);
+                saveCurrentState();
+            };
+
+            const deleteSystemPrompt = (index) => {
+                const prompt = savedSystemPrompts[index];
+                const updatedPrompts = savedSystemPrompts.filter((_, i) => i !== index);
+                setSavedSystemPrompts(updatedPrompts);
+                try {
+                    localStorage.setItem(`savedSystemPrompts_${currentUser}`, LZString.compressToUTF16(JSON.stringify(updatedPrompts)));
+                } catch (e) {
+                    console.error('Error saving system prompts:', e);
+                    setMessages([...messages, { role: 'assistant', content: 'Warning: Failed to save system prompt changes. Check browser storage limits.' }]);
+                }
+                if (systemPromptTitle === prompt.title) {
+                    setSystemPrompt('');
+                    setSystemPromptTitle('');
+                    setMessages([...messages, { role: 'assistant', content: `System prompt "${prompt.title}" deleted for ${currentUser}.` }]);
+                    saveCurrentState();
+                } else {
+                    setMessages([...messages, { role: 'assistant', content: `System prompt "${prompt.title}" deleted.` }]);
+                    saveCurrentState();
+                }
+            };
+
+            const exportConversations = () => {
+                try {
+                    const data = JSON.stringify(savedConversations, null, 2);
+                    const blob = new Blob([data], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `conversations_export_${currentUser}.json`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    setMessages([...messages, { role: 'assistant', content: 'Conversations exported successfully.' }]);
+                } catch (e) {
+                    console.error('Export error:', e);
+                    setMessages([...messages, { role: 'assistant', content: 'Error exporting conversations. Check console (F12).' }]);
+                }
+            };
+
+            const importConversations = (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+                if (!file.name.endsWith('.json')) {
+                    setMessages([...messages, { role: 'assistant', content: 'Please upload a .json file.' }]);
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const imported = JSON.parse(e.target.result);
+                        if (!Array.isArray(imported)) throw new Error('Invalid JSON format');
+                        setSavedConversations(imported);
+                        localStorage.setItem(`savedConversations_${currentUser}`, LZString.compressToUTF16(JSON.stringify(imported)));
+                        setMessages([...messages, { role: 'assistant', content: 'Conversations imported successfully.' }]);
+                    } catch (error) {
+                        console.error('Import error:', error);
+                        setMessages([...messages, { role: 'assistant', content: `Error importing conversations: ${error.message}` }]);
+                    }
+                };
+                reader.readAsText(file);
+                if (importInputRef.current) importInputRef.current.value = '';
+            };
+
+            const triggerImport = () => {
+                if (importInputRef.current) {
+                    importInputRef.current.click();
+                }
+            };
+
+            React.useEffect(() => {
+                messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+            }, [messages]);
+
+            React.useEffect(() => {
+                const handleClick = (e) => {
+                    if (e.target.classList.contains('retry-btn')) {
+                        handleRetry(e);
+                    }
+                };
+                document.addEventListener('click', handleClick);
+                return () => document.removeEventListener('click', handleClick);
+            }, []);
+
+            if (!isLoggedIn) {
+                return <Auth onLogin={handleLogin} />;
+            }
+
+            return (
+                <div className="flex min-h-screen">
+                    <div className={`fixed inset-y-0 left-0 w-64 bg-white dark:bg-gray-800 shadow-lg transform ${isConversationSidebarOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out z-30 md:relative md:translate-x-0`}>
+                        <div className="p-4">
+                            <div className="flex justify-between items-center mb-4">
+                                <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100">
+                                    <i className="fas fa-comments mr-2"></i>Conversations
+                                </h2>
+                                <button
+                                    className="md:hidden text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100"
+                                    onClick={() => setIsConversationSidebarOpen(false)}
+                                >
+                                    <i className="fas fa-times"></i>
+                                </button>
+                            </div>
+                            <div className="mb-4">
+                                <button
+                                    onClick={newChat}
+                                    className="w-full p-2 bg-gradient-to-r from-teal-500 to-teal-600 text-white rounded-lg hover:from-teal-600 hover:to-teal-700 transition-transform duration-200 hover:scale-105"
+                                >
+                                    <i className="fas fa-plus mr-2"></i>New Chat
+                                </button>
+                            </div>
+                            {savedConversations.length > 0 && (
+                                <div className="mb-4">
+                                    <h3 className="text-sm font-medium text-gray-600 dark:text-gray-300">Saved Conversations:</h3>
+                                    <ul className="mt-2 space-y-2">
+                                        {savedConversations.map((conv, index) => (
+                                            <li key={conv.id} className="flex justify-between items-center text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 p-2 rounded-lg transition-colors duration-200">
+                                                <span className="truncate">{conv.name} ({new Date(conv.timestamp).toLocaleString()})</span>
+                                                <div className="flex space-x-2">
+                                                    <button
+                                                        onClick={() => loadConversation(index)}
+                                                        className="text-teal-500 hover:text-teal-700"
+                                                    >
+                                                        <i className="fas fa-folder-open"></i>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => deleteConversation(index)}
+                                                        className="text-red-500 hover:text-red-700"
+                                                    >
+                                                        <i className="fas fa-trash"></i>
+                                                    </button>
+                                                </div>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+                            <div className="mb-4">
+                                <h3 className="text-sm font-medium text-gray-600 dark:text-gray-300 mb-2">Export/Import:</h3>
+                                <div className="flex space-x-2">
+                                    <button
+                                        onClick={exportConversations}
+                                        className="p-2 bg-gradient-to-r from-teal-500 to-teal-600 text-white rounded-lg hover:from-teal-600 hover:to-teal-700 transition-transform duration-200 hover:scale-105 flex-1"
+                                    >
+                                        <i className="fas fa-download mr-2"></i>Export
+                                    </button>
+                                    <div className="flex items-center flex-1">
+                                        <button
+                                            onClick={triggerImport}
+                                            className="p-2 bg-gradient-to-r from-teal-500 to-teal-600 text-white rounded-lg hover:from-teal-600 hover:to-teal-700 transition-transform duration-200 hover:scale-105 w-full"
+                                        >
+                                            <i className="fas fa-upload mr-2"></i>Import
+                                        </button>
+                                        <input
+                                            type="file"
+                                            accept=".json"
+                                            onChange={importConversations}
+                                            ref={importInputRef}
+                                            className="hidden"
+                                        />
+                                    </div>
+                                </div>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Export/Import shares conversations only, excluding documents.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div className={`fixed inset-y-0 right-0 w-64 bg-white dark:bg-gray-800 shadow-lg transform ${isPromptSidebarOpen ? 'translate-x-0' : 'translate-x-full'} transition-transform duration-300 ease-in-out z-30 md:relative md:translate-x-0`}>
+                        <div className="p-4">
+                            <div className="flex justify-between items-center mb-4">
+                                <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100">
+                                    <i className="fas fa-cog mr-2"></i>System Prompts
+                                </h2>
+                                <button
+                                    className="md:hidden text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100"
+                                    onClick={() => setIsPromptSidebarOpen(false)}
+                                >
+                                    <i className="fas fa-times"></i>
+                                </button>
+                            </div>
+                            <div className="mb-4">
+                                <label htmlFor="prompt-title" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Prompt Title:</label>
+                                <input
+                                    id="prompt-title"
+                                    value={systemPromptTitle}
+                                    onChange={(e) => setSystemPromptTitle(e.target.value)}
+                                    className="mt-1 block w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                                    placeholder="Enter prompt title"
+                                />
+                                <label htmlFor="system-prompt" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mt-2">System Prompt:</label>
+                                <textarea
+                                    id="system-prompt"
+                                    value={systemPrompt}
+                                    onChange={(e) => setSystemPrompt(e.target.value)}
+                                    className="mt-1 block w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                                    placeholder="Enter system prompt"
+                                    rows="4"
+                                />
+                                <button
+                                    onClick={saveSystemPrompt}
+                                    className="mt-2 p-2 bg-gradient-to-r from-teal-500 to-teal-600 text-white rounded-lg hover:from-teal-600 hover:to-teal-700 transition-transform duration-200 hover:scale-105"
+                                >
+                                    <i className="fas fa-save mr-2"></i>Save Prompt
+                                </button>
+                            </div>
+                            {savedSystemPrompts.length > 0 && (
+                                <div className="mb-4">
+                                    <h3 className="text-sm font-medium text-gray-600 dark:text-gray-300">Saved Prompts:</h3>
+                                    <ul className="mt-2 space-y-2">
+                                        {savedSystemPrompts.map((prompt, index) => (
+                                            <li key={prompt.id} className="flex justify-between items-center text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 p-2 rounded-lg transition-colors duration-200">
+                                                <span className="truncate">{prompt.title} ({new Date(prompt.timestamp).toLocaleString()})</span>
+                                                <div className="flex space-x-2">
+                                                    <button
+                                                        onClick={() => loadSystemPrompt(index)}
+                                                        className="text-teal-500 hover:text-teal-700"
+                                                    >
+                                                        <i className="fas fa-folder-open"></i>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => deleteSystemPrompt(index)}
+                                                        className="text-red-500 hover:text-red-700"
+                                                    >
+                                                        <i className="fas fa-trash"></i>
+                                                    </button>
+                                                </div>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                    <div className="flex-1 p-4 flex flex-col max-w-4xl mx-auto">
+                        <div className="flex justify-between items-center mb-4">
+                            <div className="flex justify-between md:hidden w-full">
+                                <button
+                                    onClick={() => setIsConversationSidebarOpen(true)}
+                                    className="p-2 bg-gradient-to-r from-teal-500 to-teal-600 text-white rounded-lg hover:from-teal-600 hover:to-teal-700 transition-transform duration-200 hover:scale-105"
+                                >
+                                    <i className="fas fa-bars mr-2"></i>Conversations
+                                </button>
+                                <button
+                                    onClick={() => setIsPromptSidebarOpen(true)}
+                                    className="p-2 bg-gradient-to-r from-teal-500 to-teal-600 text-white rounded-lg hover:from-teal-600 hover:to-teal-700 transition-transform duration-200 hover:scale-105"
+                                >
+                                    <i className="fas fa-cog mr-2"></i>Prompts
+                                </button>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <span className="text-sm text-gray-600 dark:text-gray-300">Hello, {currentUser}</span>
+                                <button
+                                    onClick={handleLogout}
+                                    className="p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-transform duration-200 hover:scale-105"
+                                >
+                                    <i className="fas fa-sign-out-alt"></i>
+                                </button>
+                                <button
+                                    onClick={toggleTheme}
+                                    className="p-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors duration-200"
+                                >
+                                    <i className={isDarkMode ? "fas fa-sun" : "fas fa-moon"}></i>
+                                </button>
+                            </div>
+                        </div>
+                        <h1 className="text-3xl font-bold text-center mb-6 text-gray-800 dark:text-gray-100">Ollama Chat Interface</h1>
+                        <div className="mb-4">
+                            <label htmlFor="model-select" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Select Model:</label>
+                            <select
+                                id="model-select"
+                                value={model}
+                                onChange={(e) => setModel(e.target.value)}
+                                disabled={models.length === 0}
+                                className="mt-1 block w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:bg-gray-200 dark:disabled:bg-gray-600"
+                            >
+                                <option value="">Select a model</option>
+                                {models.map((m) => (
+                                    <option key={m} value={m}>{m}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="mb-4">
+                            <label htmlFor="file-upload" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Upload Document (.txt, .pdf, .docx, .xlsx):</label>
+                            <input
+                                id="file-upload"
+                                type="file"
+                                accept=".txt,.pdf,.docx,.xlsx"
+                                onChange={handleFileUpload}
+                                disabled={isLoading}
+                                ref={fileInputRef}
+                                className="mt-1 block w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-teal-500 file:text-white file:hover:bg-teal-600"
+                            />
+                        </div>
+                        {documents.length > 0 && (
+                            <div className="mb-4">
+                                <div className="flex justify-between items-center">
+                                    <h2 className="text-lg font-medium text-gray-700 dark:text-gray-100">Uploaded Documents:</h2>
+                                    <button
+                                        onClick={() => setIsDocumentsCollapsed(!isDocumentsCollapsed)}
+                                        className="text-sm text-teal-500 hover:text-teal-700"
+                                    >
+                                        {isDocumentsCollapsed ? 'Expand' : 'Collapse'}
+                                    </button>
+                                </div>
+                                {!isDocumentsCollapsed && (
+                                    <ul className="mt-2 space-y-2">
+                                        {documents.map((doc, index) => (
+                                            <li key={index} className="flex justify-between items-center text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 p-2 rounded-lg transition-colors duration-200">
+                                                <span className="truncate">{doc.name}</span>
+                                                <button
+                                                    onClick={() => removeDocument(index)}
+                                                    className="text-red-500 hover:text-red-700"
+                                                >
+                                                    <i className="fas fa-trash"></i>
+                                                </button>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
+                            </div>
+                        )}
+                        <div className="text-center text-sm text-gray-600 dark:text-gray-300 mb-4">{status}</div>
+                        <div className="flex-1 bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg overflow-y-auto max-h-[60vh]">
+                            {messages.map((msg, index) => (
+                                <div key={index} className={`mb-4 flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} fade-in`}>
+                                    <div className={`flex items-start space-x-2 max-w-[80%]`}>
+                                        {msg.role === 'assistant' && (
+                                            <div className="w-8 h-8 rounded-full bg-teal-500 text-white flex items-center justify-center font-medium">
+                                                AI
+                                            </div>
+                                        )}
+                                        <div className={`p-4 rounded-lg ${msg.role === 'user' ? 'bg-teal-100 dark:bg-teal-900' : 'bg-gray-100 dark:bg-gray-700'} shadow-sm`}>
+                                            <div className={`text-sm font-medium ${msg.role === 'user' ? 'text-teal-600 dark:text-teal-300' : 'text-gray-800 dark:text-gray-100'} mb-1`}>
+                                                {msg.role === 'user' ? 'User' : 'AI Assistant'}
+                                            </div>
+                                            <div
+                                                className="text-gray-800 dark:text-gray-100 whitespace-normal break-words"
+                                                dangerouslySetInnerHTML={{ __html: msg.role === 'assistant' && window.marked ? msg.content : msg.content.replace(/\n/g, '<br>') }}
+                                            />
+                                        </div>
+                                        {msg.role === 'user' && (
+                                            <div className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center font-medium">
+                                                U
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                            {isLoading && !isRetrying && <div className="text-center text-gray-500 dark:text-gray-300"><span className="spinner"></span> Loading...</div>}
+                            {isRetrying && <div className="text-center text-gray-500 dark:text-gray-300"><span className="spinner"></span> Retrying...</div>}
+                            <div ref={messagesEndRef} />
+                        </div>
+                        <div className="sticky bottom-0 mt-4 bg-gray-50 dark:bg-gray-900 p-4 rounded-lg shadow-lg">
+                            <div className="flex items-center space-x-2">
+                                <textarea
+                                    value={input}
+                                    onChange={(e) => setInput(e.target.value)}
+                                    onKeyPress={handleKeyPress}
+                                    disabled={isLoading || !model || models.length === 0 || isInputDisabled}
+                                    className="flex-1 p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:bg-gray-200 dark:disabled:bg-gray-600 resize-none"
+                                    placeholder={isInputDisabled ? "Input disabled for a few seconds..." : model ? "Type your message..." : "Please select a model"}
+                                    rows="3"
+                                />
+                                {isLoading || isRetrying ? (
+                                    <button
+                                        onClick={stopRequest}
+                                        className="p-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg hover:from-red-600 hover:to-red-700 transition-transform duration-200 hover:scale-105"
+                                    >
+                                        <i className="fas fa-stop"></i>
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={sendMessage}
+                                        disabled={isLoading || !model || models.length === 0 || isInputDisabled}
+                                        className="p-3 bg-gradient-to-r from-teal-500 to-teal-600 text-white rounded-lg hover:from-teal-600 hover:to-teal-700 transition-transform duration-200 hover:scale-105 disabled:bg-gray-400 dark:disabled:bg-gray-600"
+                                    >
+                                        <i className="fas fa-paper-plane"></i>
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        try {
+            console.log('Rendering Ollama Chat Interface...');
+            ReactDOM.render(<App />, document.getElementById('root'));
+            console.log('App rendered successfully');
+        } catch (e) {
+            console.error('Error rendering app:', e);
+        }
+    </script>
+</body>
+</html>
