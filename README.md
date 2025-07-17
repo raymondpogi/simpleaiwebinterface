@@ -1,6 +1,8 @@
 # simpleaiwebinterface
 A Simple Self Hosted AI Web Interface that Interacts with your hosted LLM like Ollama. 
 
+
+
 <img width="927" height="630" alt="image" src="https://github.com/user-attachments/assets/45359d5b-0d48-45b5-8126-b72ca59f2d9e" /> 
 <img width="1785" height="905" alt="image" src="https://github.com/user-attachments/assets/66822693-42cd-4301-a1f5-976e8b3642a8" />
 
@@ -23,29 +25,19 @@ Installation
 
 Prerequisites:
 
-Install Ollama and pull a model (e.g., ollama pull mistral).
+Install Ollama Desktop and pull a model (e.g., ollama pull mistral).
 Ensure Ollama is running: ollama serve.
-Python 3.x for the installer script.
+Python 3.x to host the index.html
 
 
 Setup:
 
-Clone the repository:git clone https://github.com/yourusername/ollama-chat-interface.git
-cd ollama-chat-interface
+1. Download the index.html and save to your preferred location
+2. Open CMD/Terminal and locate the index.html
+3. Type: python -m http.server 8080
+4. Launch the Web App:
 
-
-Run the installer script to set up the project directory (~/OllamaChat or C:\Users\<Username>\OllamaChat) and create a Desktop shortcut:python installer.py
-
-
-
-
-Launch the App:
-
-Windows: Double-click Ollama Chat Interface.lnk or run start_ollama_chat.bat.
-Linux: Double-click OllamaChat.desktop or run bash start_ollama_chat.sh.
 Access at http://localhost:8080.
-
-
 
 Usage
 
