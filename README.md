@@ -3,8 +3,10 @@ A Simple Self Hosted AI Web Interface that Interacts with your hosted LLM like O
 
 
 
-<img width="927" height="630" alt="image" src="https://github.com/user-attachments/assets/45359d5b-0d48-45b5-8126-b72ca59f2d9e" /> 
-<img width="1785" height="905" alt="image" src="https://github.com/user-attachments/assets/66822693-42cd-4301-a1f5-976e8b3642a8" />
+<img width="757" height="731" alt="image" src="https://github.com/user-attachments/assets/21b6f573-6800-44f2-821a-19478af1bcf0" />
+
+<img width="1848" height="916" alt="image" src="https://github.com/user-attachments/assets/6fd6811a-0008-494a-a3cc-8f4cae9fce08" />
+
 
 Ollama Chat Interface
 A modern, client-side web application for interacting with Ollama models, built with React, Tailwind CSS, and JavaScript. Features a sleek, ChatGPT-inspired UI with user authentication, unique user profiles, dark/light mode, and support for file uploads and conversation management.
