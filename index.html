@@ -139,6 +139,9 @@
                                 {isLogin ? 'Need an account? Create one' : 'Have an account? Login'}
                             </button>
                         </form>
+                        <div className="mt-4 p-4 bg-gray-100 dark:bg-gray-700 rounded-lg text-sm text-gray-600 dark:text-gray-400 text-center">
+                            This is a self-hosted Ollama Chat Interface running on http://localhost:8080 with no external access. User data (conversations, prompts) is stored in browser localStorage with SHA-256 password hashing. Not secure for production; use a backend for enhanced security.
+                        </div>
                     </div>
                 </div>
             );
@@ -261,6 +264,17 @@
                 setSystemPromptTitle('');
                 setCurrentConversationId(null);
                 setModel('');
+            };
+
+            const clearChat = () => {
+                setMessages([{ role: 'assistant', content: `Chat cleared. Please select a model.` }]);
+                setDocuments([]);
+                setSystemPrompt('');
+                setSystemPromptTitle('');
+                setCurrentConversationId(null);
+                setModel('');
+                setLastFailedMessage(null);
+                localStorage.removeItem(`currentConversation_${currentUser}`);
             };
 
             const fetchModels = async (retries = 3, delay = 1000) => {
@@ -722,10 +736,17 @@
                             <div className="mb-4">
                                 <button
                                     onClick={newChat}
-                                    className="w-full p-2 bg-gradient-to-r from-teal-500 to-teal-600 text-white rounded-lg hover:from-teal-600 hover:to-teal-700 transition-transform duration-200 hover:scale-105"
+                                    className="w-full p-2 bg-gradient-to-r from-teal-500 to-teal-600 text-white rounded-lg hover:from-teal-600 hover:to-teal-700 transition-transform duration-200 hover:scale-105 mb-2"
                                 >
                                     <i className="fas fa-plus mr-2"></i>New Chat
                                 </button>
+                                <button
+                                    onClick={clearChat}
+                                    className="w-full p-2 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg hover:from-orange-600 hover:to-orange-700 transition-transform duration-200 hover:scale-105"
+                                >
+                                    <i className="fas fa-trash-can mr-2"></i>Clear Chat
+                                </button>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Clears current chat and bot memory. Model must be reselected.</p>
                             </div>
                             {savedConversations.length > 0 && (
                                 <div className="mb-4">
